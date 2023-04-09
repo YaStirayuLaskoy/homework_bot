@@ -120,13 +120,13 @@ def main():
         SystemExit.exit()
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    timestamp = int(time.time())
+    # timestamp = int(time.time())
     tmp_status = 'reviewing'
 
     while True:
         try:
             check_tokens()
-            response = get_api_answer(timestamp)
+            response = get_api_answer(PAYLOAD)
             homework = check_response(response)
             if homework and tmp_status != homework['status']:
                 message = parse_status(homework)
