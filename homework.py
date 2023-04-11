@@ -4,7 +4,7 @@ import logging
 import time
 import telegram
 from http import HTTPStatus
-from exceptions import MissingTokens
+from exceptions import MissingTokens, TelegramError
 from logging.handlers import RotatingFileHandler
 
 from dotenv import load_dotenv
@@ -31,6 +31,7 @@ HOMEWORK_VERDICTS = {
 
 
 logging.basicConfig(level=logging.INFO,
+                    encoding='utf-8',
                     filename='main.log',
                     filemode='w',
                     format='%(asctime)s, %(levelname)s, %(message)s')
@@ -38,6 +39,7 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 handler = RotatingFileHandler('my_logger.log',
+                              encoding='utf-8',
                               maxBytes=50000000,
                               backupCount=5)
 logger.addHandler(handler)
@@ -45,7 +47,22 @@ logger.addHandler(handler)
 
 def check_tokens():
     """Проверка доступности переменных, необходиме для работы программы."""
-    if PRACTICUM_TOKEN != os.getenv('PRACTICUM_TOKEN'):
+    params = {
+        PRACTICUM_TOKEN: os.getenv('PRACTICUM_TOKEN'),
+        TELEGRAM_TOKEN: os.getenv('TELEGRAM_TOKEN'),
+        TELEGRAM_CHAT_ID: os.getenv('TELEGRAM_CHAT_ID')
+    }
+    return all(params)
+
+
+'''    if x is False:
+        logging.critical('Ошибка доступности переменных')
+        raise MissingTokens('Отсутствуют необходимые токены')
+    else:
+        return True'''
+
+
+'''    if PRACTICUM_TOKEN != os.getenv('PRACTICUM_TOKEN'):
         logging.critical('Ошибка доступности переменных')
         raise MissingTokens('Отсутствуют необходимые токены')
     elif TELEGRAM_TOKEN != os.getenv('TELEGRAM_TOKEN'):
@@ -53,31 +70,58 @@ def check_tokens():
         raise MissingTokens('Отсутствуют необходимые токены')
     elif TELEGRAM_CHAT_ID != os.getenv('TELEGRAM_CHAT_ID'):
         logging.critical('Ошибка доступности переменных')
-        raise MissingTokens('Отсутствуют необходимые токены')
+        raise MissingTokens('Отсутствуют необходимые токены')'''
 
 
 def send_message(bot, message):
     """отправляет сообщение в Telegram чат."""
     try:
+        logging.info(f'Отправка сообщения: {message}')
         bot.send_message(TELEGRAM_CHAT_ID, message)
     except Exception as error:
-        logging.error(f'Ошибка отправки сообщение в Telegram чат.: {error}')
-    logging.debug(f'Сообщение отправлено: {message}')
+        logging.error(f'Ошибка отправки сообщение в Telegram чат: {error}')
+        raise TelegramError(f'Ошибка отправки телеграм сообщения: {error}')
+    else:
+        logging.debug(f'Сообщение успешно отправлено: {message}')
 
 
 def get_api_answer(timestamp):
     """Делает запрос к эндпоинту API-сервиса."""
+    timestamp = int(time.time())
+    request_params = {
+        'url': ENDPOINT,
+        'headers': {'Authorization': f'OAuth {PRACTICUM_TOKEN}'},
+        'params': {'from_date': timestamp}
+    }
+
     try:
-        logging.info('Запрос к экндпоинту API')
-        response = requests.get(ENDPOINT,
-                                headers=HEADERS,
-                                params=timestamp)
+        logging.info(
+            (
+                'Начинаем подключение к эндпоинту {url}, с параметрами'
+                ' headers = {headers} ;params= {params}.'
+            ).format(**request_params)
+        )
+        response = requests.get(**request_params)
+
+        if response.status_code != HTTPStatus.OK:
+            raise MissingTokens(
+                'Ответ сервера не является успешным:'
+                f' request params = {request_params};'
+                f' http_code = {response.status_code};'
+                f' reason = {response.reason}; content = {response.text}'
+            )
 
     except Exception as error:
-        logging.error(f'Запрос к экндпоинту API не сработал {error}')
-        raise TypeError(f'Запрос к экндпоинту API не сработал {error}')
-    if response.status_code != HTTPStatus.OK:
-        raise HTTPStatus('Код ответа не 200')
+        raise ConnectionError(
+            (
+                'Во время подключения к эндпоинту {url} произошла'
+                ' непредвиденная ошибка: {error}'
+                ' headers = {headers}; params = {params};'
+            ).format(
+                error=error,
+                **request_params
+            )
+        )
     return response.json()
 
 
@@ -92,7 +136,7 @@ def check_response(response):
     if not isinstance(response.get('homeworks'), list):
         logging.error('ключа homeworks нет')
         raise TypeError('ключа homeworks нет')
-    return response.get('homeworks')[0]
+    return response.get('homeworks')
 
 
 def parse_status(homework):
@@ -116,29 +160,54 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
-    if check_tokens() is False:
-        SystemExit.exit()
+    # Делаем проверку токенов
+    if not check_tokens():
+        message = (
+            'Отсутсвуют обязательные переменные окружения: PRACTICUM_TOKEN,'
+            ' TELEGRAM_TOKEN, TELEGRAM_CHAT_ID.'
+            ' Программа принудительно остановлена.'
+        )
+        logging.critical(message)
+        SystemExit.exit(message)
 
+    # Создаем бота и получаем время
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
-    # timestamp = int(time.time())
-    tmp_status = 'reviewing'
+    timestamp = int(time.time())
+
+    # Cловарm для хранения текущего сообщения
+    current_report = {'name': '', 'output': ''}
+    # Словарь для хранения предыдущего сообщения
+    prev_report = current_report.copy()
 
     while True:
         try:
-            check_tokens()
-            response = get_api_answer(PAYLOAD)
-            homework = check_response(response)
-            if homework and tmp_status != homework['status']:
-                message = parse_status(homework)
-                send_message(bot, message)
-                time.sleep(RETRY_PERIOD)
-            logging.info('Всё по прежнему')
-            time.sleep(RETRY_PERIOD)
+            response = get_api_answer(timestamp)
+            timestamp = response.get('current_date', timestamp)
+            new_homeworks = check_response(response)
+
+            if new_homeworks:
+                current_report['name'] = new_homeworks[0]['homework_name']
+                current_report['output'] = parse_status(new_homeworks[0])
+            else:
+                current_report['output'] = (
+                    f'За период от {timestamp} до настоящего момента'
+                    ' домашних работ нет.'
+                )
+
+            if current_report != prev_report:
+                send_message(bot, current_report)
+                prev_report = current_report.copy()
+            else:
+                logging.debug('В ответе нет новых статусов.')
 
         except Exception as error:
             message = f'Сбой в работе программы: {error}'
-            send_message(bot, message)
-            logging.error(message)
+            current_report['output'] = message
+            logging.error(message, exc_info=True)
+            if current_report != prev_report:
+                send_message(bot, current_report)
+                prev_report = current_report.copy()
+        finally:
             time.sleep(RETRY_PERIOD)
 
 
