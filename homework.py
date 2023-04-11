@@ -22,7 +22,6 @@ ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 PAYLOAD = {'from_date': 0}
 
-
 HOMEWORK_VERDICTS = {
     'approved': 'Работа проверена: ревьюеру всё понравилось. Ура!',
     'reviewing': 'Работа взята на проверку ревьюером.',
@@ -53,24 +52,6 @@ def check_tokens():
         TELEGRAM_CHAT_ID: os.getenv('TELEGRAM_CHAT_ID')
     }
     return all(params)
-
-
-'''    if x is False:
-        logging.critical('Ошибка доступности переменных')
-        raise MissingTokens('Отсутствуют необходимые токены')
-    else:
-        return True'''
-
-
-'''    if PRACTICUM_TOKEN != os.getenv('PRACTICUM_TOKEN'):
-        logging.critical('Ошибка доступности переменных')
-        raise MissingTokens('Отсутствуют необходимые токены')
-    elif TELEGRAM_TOKEN != os.getenv('TELEGRAM_TOKEN'):
-        logging.critical('Ошибка доступности переменных')
-        raise MissingTokens('Отсутствуют необходимые токены')
-    elif TELEGRAM_CHAT_ID != os.getenv('TELEGRAM_CHAT_ID'):
-        logging.critical('Ошибка доступности переменных')
-        raise MissingTokens('Отсутствуют необходимые токены')'''
 
 
 def send_message(bot, message):
@@ -174,7 +155,7 @@ def main():
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
 
-    # Cловарm для хранения текущего сообщения
+    # Cловарь для хранения текущего сообщения
     current_report = {'name': '', 'output': ''}
     # Словарь для хранения предыдущего сообщения
     prev_report = current_report.copy()
