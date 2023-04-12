@@ -46,12 +46,7 @@ logger.addHandler(handler)
 
 def check_tokens():
     """Проверка доступности переменных, необходиме для работы программы."""
-    params = {
-        PRACTICUM_TOKEN: os.getenv('PRACTICUM_TOKEN'),
-        TELEGRAM_TOKEN: os.getenv('TELEGRAM_TOKEN'),
-        TELEGRAM_CHAT_ID: os.getenv('TELEGRAM_CHAT_ID')
-    }
-    return all(params)
+    return all([PRACTICUM_TOKEN, TELEGRAM_TOKEN, TELEGRAM_CHAT_ID])
 
 
 def send_message(bot, message):
