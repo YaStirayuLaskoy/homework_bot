@@ -1,6 +1,7 @@
 import requests
 import os
 import logging
+from datetime import datetime
 import time
 import telegram
 from http import HTTPStatus
@@ -149,6 +150,7 @@ def main():
     # Создаем бота и получаем время
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     timestamp = int(time.time())
+    timestamp_normal = datetime.now().date()
 
     # Cловарь для хранения текущего сообщения
     current_report = {'name': '', 'output': ''}
@@ -165,8 +167,8 @@ def main():
                 current_report['name'] = new_homeworks[0]['homework_name']
                 current_report['output'] = parse_status(new_homeworks[0])
             else:
-                current_report['output'] = (
-                    f'За период от {timestamp} до настоящего момента'
+                current_report = (
+                    f'За период от {timestamp_normal} до настоящего момента'
                     ' домашних работ нет.'
                 )
 
