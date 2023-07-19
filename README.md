@@ -22,11 +22,11 @@ git clone git@github.com:YaStirayuLaskoy/homework_bot.git
 cd homework_bot
 ```
 #### Cоздать и активировать виртуальное окружение:
-Для Windows:
+Для Mac:
 ```
 python -m venv env
 ```
-Для Mac:
+Для Windows:
 ```
 source venv/Scripts/activate
 ```
